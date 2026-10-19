@@ -1,5 +1,5 @@
-import { letters, sampleStroke } from './letters.js';
-import { TurtleSounds } from './sound.js';
+import { letters, sampleStroke } from './letters.js?v=cde7938a6d6b4680';
+import { TurtleSounds } from './sound.js?v=4f173dfe0f7706d6';
 
 const $ = (id) => document.getElementById(id);
 const ns = 'http://www.w3.org/2000/svg';
@@ -16,7 +16,16 @@ try {
   const saved = JSON.parse(localStorage.getItem('turtle-hangul-sound-v1') || 'null');
   if (saved && typeof saved.enabled === 'boolean' && Number.isFinite(saved.volume) && saved.volume >= 0 && saved.volume <= 100) soundSettings = { enabled: saved.enabled, volume: saved.volume };
 } catch { /* Keep usable defaults if storage is blocked. */ }
-const sounds = new TurtleSounds(soundSettings);
+const sounds = new TurtleSounds({ ...soundSettings, onStatus: (state) => {
+  const messages = {
+    ready: '효과음을 재생해요. 들리지 않으면 기기 음량을 확인해 주세요.',
+    disabled: '효과음 켜기를 선택한 뒤 다시 확인해 주세요.',
+    silent: '효과음 크기가 0%예요. 음량을 올린 뒤 다시 확인해 주세요.',
+    unsupported: '이 브라우저에서는 효과음을 지원하지 않아요. 다른 브라우저에서 확인해 주세요.',
+    blocked: '소리를 시작하지 못했어요. 기기 음량을 확인하고 ‘소리 확인’을 다시 눌러 주세요.',
+  };
+  $('sound-status').textContent = messages[state] || '';
+} });
 $('sound-enabled').checked = soundSettings.enabled;
 $('sound-volume').value = soundSettings.volume;
 $('sound-volume-value').textContent = `${soundSettings.volume}%`;
@@ -269,6 +278,8 @@ function updateSoundSettings() {
 }
 $('sound-enabled').addEventListener('change', updateSoundSettings);
 $('sound-volume').addEventListener('input', updateSoundSettings);
+$('sound-volume').addEventListener('change', updateSoundSettings);
+$('preview-sound').addEventListener('click', () => sounds.preview());
 
 function boardPoint(event) {
   const matrix = $('board').getScreenCTM();
@@ -323,5 +334,5 @@ $('reset-progress').addEventListener('click', () => {
   seen.clear(); saveSeen(); reset(); resetArmed = false;
   $('reset-status').textContent = '함께 본 글자 기록을 지웠어요.';
 });
-$('teacher-dialog').addEventListener('close', () => { resetArmed = false; $('reset-status').textContent = ''; });
+$('teacher-dialog').addEventListener('close', () => { sounds.stop(); resetArmed = false; $('reset-status').textContent = ''; });
 choose(0);

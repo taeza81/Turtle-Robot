@@ -10,7 +10,7 @@ args = parser.parse_args()
 
 # Observe real oscillators and a real analyser, without replacing audio synthesis.
 probe = """
-window.audioProbe = {started: [], active: new Set(), analysers: []};
+window.audioProbe = {started: [], active: new Set(), analysers: [], masterGains: []};
 const NativeAudio = window.AudioContext;
 window.AudioContext = new Proxy(NativeAudio, {
   construct(Target, args) {
@@ -23,7 +23,7 @@ window.AudioContext = new Proxy(NativeAudio, {
       const node = createGain();
       const connect = node.connect.bind(node);
       node.connect = (destination, ...rest) => {
-        if (destination === context.destination) connect(analyser);
+        if (destination === context.destination) {connect(analyser); audioProbe.masterGains.push(node);}
         return connect(destination, ...rest);
       };
       return node;
@@ -97,6 +97,35 @@ with sync_playwright() as p:
     assert page.locator('#place').is_enabled()
     print('PASS: no autoplay; real audio waveform during movement; silence on transfer; completion sound ends')
 
+    # Exercise native range events, rather than only dispatching artificial input.
+    settings(page)
+    slider = page.locator('#sound-volume')
+    slider.scroll_into_view_if_needed()
+    box = slider.bounding_box()
+    page.mouse.move(box['x'] + box['width'] * .2, box['y'] + box['height'] / 2)
+    page.mouse.down()
+    page.mouse.move(box['x'] + box['width'] * .7, box['y'] + box['height'] / 2, steps=12)
+    page.mouse.up()
+    assert int(slider.input_value()) >= 65
+    assert page.locator('#sound-volume-value').inner_text() == slider.input_value() + '%'
+    slider.focus()
+    page.keyboard.press('Home')
+    assert page.locator('#sound-volume-value').inner_text() == '0%'
+    page.keyboard.press('End')
+    assert page.locator('#sound-volume-value').inner_text() == '100%'
+    page.keyboard.press('Home')
+    for _ in range(4): page.keyboard.press('ArrowRight')
+    assert page.locator('#sound-volume-value').inner_text() == '20%'
+    page.wait_for_function('Math.abs(audioProbe.masterGains[0].gain.value - .1) < .005')
+    before_preview = page.evaluate('audioProbe.started.length')
+    page.locator('#preview-sound').click()
+    page.wait_for_function(f'audioProbe.started.length >= {before_preview + 3}')
+    page.wait_for_function('audioRms() > .00001')
+    assert '재생' in page.locator('#sound-status').inner_text()
+    close_settings(page)
+    page.wait_for_function('audioProbe.active.size === 0')
+    print('PASS: native slider drag and keyboard update percentage; sound preview produces real audio')
+
     settings(page)
     page.locator('#sound-enabled').uncheck()
     page.locator('#sound-volume').evaluate("el => {el.value='35';el.dispatchEvent(new Event('input',{bubbles:true}));}")
@@ -154,6 +183,8 @@ with sync_playwright() as p:
     fallback.on('pageerror', lambda e: errors.append(str(e)))
     fallback.goto(args.base_url)
     settings(fallback)
+    fallback.locator('#preview-sound').click()
+    assert '지원하지' in fallback.locator('#sound-status').inner_text()
     fallback.locator('#speed').select_option('reduced')
     close_settings(fallback)
     fallback.locator('#place').click()

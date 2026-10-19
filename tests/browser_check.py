@@ -136,8 +136,13 @@ with sync_playwright() as p:
         assert page.locator('button:visible').count() == 4
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
         assert page.evaluate('document.documentElement.scrollHeight <= innerHeight + 2')
+        gear = page.locator('#teacher-button').bounding_box()
+        assert gear['width'] >= 64 and gear['height'] >= 64
+        assert width - (gear['x'] + gear['width']) <= 24
+        assert height - (gear['y'] + gear['height']) <= 24
+        assert page.get_by_role('button', name='교사 설정', exact=True).count() == 1
         page.screenshot(path=str(artifacts / f'{label}.png'), full_page=True)
-    print('PASS: tablet portrait/landscape canvas occupies most of the screen, no page scrolling, four initial controls')
+    print('PASS: tablet portrait/landscape canvas, no scrolling, large bottom-right settings gear, four initial controls')
 
     reduced = browser.new_context(reduced_motion='reduce', viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True)
     mobile = prepare(reduced)

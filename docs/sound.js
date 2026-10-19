@@ -1,6 +1,6 @@
 // Small, locally generated notes: no audio files, network requests or autoplay.
 export class TurtleSounds {
-  constructor({ enabled = true, volume = 20 } = {}) {
+  constructor({ enabled = true, volume = 20, onStatus = () => {} } = {}) {
     this.enabled = enabled;
     this.volume = volume;
     this.context = null;
@@ -11,39 +11,62 @@ export class TurtleSounds {
     this.noteIndex = 0;
     this.nextBeat = 0;
     this.inStroke = false;
+    this.onStatus = onStatus;
+    this.session = 0;
   }
 
   configure({ enabled, volume }) {
     this.enabled = enabled;
     this.volume = volume;
-    if (this.master) this.master.gain.setTargetAtTime(volume / 100 * .25, this.context.currentTime, .02);
+    if (this.master) this.master.gain.setTargetAtTime(volume / 100 * .5, this.context.currentTime, .02);
     if (!enabled || volume === 0) this.quiet();
   }
 
   start({ continuous = true } = {}) {
+    const session = ++this.session;
     this.playing = true;
     this.continuous = continuous;
     this.noteIndex = 0;
     this.nextBeat = 0;
     this.inStroke = true;
-    if (!this.enabled || this.volume === 0 || document.hidden) return;
+    this.prepare().then((ready) => {
+      if (ready && session === this.session && this.playing && this.continuous && this.inStroke) this.move();
+    });
+  }
+
+  async prepare() {
+    if (!this.enabled) { this.onStatus('disabled'); return false; }
+    if (this.volume === 0) { this.onStatus('silent'); return false; }
+    if (document.hidden) return false;
     try {
       const Audio = window.AudioContext || window.webkitAudioContext;
-      if (!Audio) return;
-      if (!this.context) {
+      if (!Audio) { this.onStatus('unsupported'); return false; }
+      // Supported iPads can use the playback audio route rather than ambient audio.
+      try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+      if (!this.context || this.context.state === 'closed') {
         this.context = new Audio();
         this.master = this.context.createGain();
-        this.master.gain.value = this.volume / 100 * .25;
+        this.master.gain.value = this.volume / 100 * .5;
         this.master.connect(this.context.destination);
       }
       // Call resume in the original click/touch gesture, including on iPad.
-      this.context.resume().then(() => {
-        if (this.playing && this.continuous && this.inStroke) this.move();
-      }).catch(() => {});
+      await this.context.resume();
+      const ready = this.context.state === 'running';
+      this.onStatus(ready ? 'ready' : 'blocked');
+      return ready;
     } catch {
       // Audio support or permission must never block the learning activity.
-      this.context = null;
-      this.master = null;
+      this.onStatus('blocked');
+      return false;
+    }
+  }
+
+  async preview() {
+    this.stop();
+    const session = this.session;
+    if (await this.prepare() && session === this.session) {
+      const now = this.context.currentTime + .02;
+      [523.25, 659.25, 783.99].forEach((note, i) => this.tone(note, now + i * .15));
     }
   }
 
@@ -88,6 +111,7 @@ export class TurtleSounds {
   }
 
   quiet() {
+    this.session++;
     this.inStroke = false;
     if (this.context) {
       const now = this.context.currentTime;
