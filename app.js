@@ -1,4 +1,5 @@
 import { letters, sampleStroke } from './letters.js';
+import { TurtleSounds } from './sound.js';
 
 const $ = (id) => document.getElementById(id);
 const ns = 'http://www.w3.org/2000/svg';
@@ -6,13 +7,22 @@ const storageKey = 'turtle-hangul-seen-v1';
 const dock = { x: 110, y: 425 };
 let seen = new Set();
 let storageAvailable = true;
+let soundSettings = { enabled: true, volume: 20 };
 try {
   const saved = JSON.parse(localStorage.getItem(storageKey) || '[]');
   if (Array.isArray(saved)) seen = new Set(saved.filter((v) => letters.some((l) => l.char === v)));
 } catch { storageAvailable = false; }
+try {
+  const saved = JSON.parse(localStorage.getItem('turtle-hangul-sound-v1') || 'null');
+  if (saved && typeof saved.enabled === 'boolean' && Number.isFinite(saved.volume) && saved.volume >= 0 && saved.volume <= 100) soundSettings = { enabled: saved.enabled, volume: saved.volume };
+} catch { /* Keep usable defaults if storage is blocked. */ }
+const sounds = new TurtleSounds(soundSettings);
+$('sound-enabled').checked = soundSettings.enabled;
+$('sound-volume').value = soundSettings.volume;
+$('sound-volume-value').textContent = `${soundSettings.volume}%`;
 let selected = 0, geometry = [], inkPaths = [], stroke = 0, distance = 0;
 let phase = 'draw', status = 'idle', placed = false, frame = 0, lastTime = null;
-let completedStrokes = 0, dragging = false, interactionLocked = false;
+let completedStrokes = 0, dragging = false, pressedStart = false, interactionLocked = false;
 let color = document.querySelector('input[name=color]:checked').value;
 if (matchMedia('(prefers-reduced-motion: reduce)').matches) $('speed').value = 'reduced';
 
@@ -107,8 +117,9 @@ document.addEventListener('keydown', (event) => {
 }, true);
 function reset() {
   cancelMotion();
+  sounds.stop();
   speechSynthesisSafeCancel();
-  stroke = 0; distance = 0; phase = 'draw'; status = 'idle'; placed = false; dragging = false; completedStrokes = 0;
+  stroke = 0; distance = 0; phase = 'draw'; status = 'idle'; placed = false; dragging = false; pressedStart = false; completedStrokes = 0;
   $('ink').replaceChildren(); $('trail').replaceChildren(); $('completion').hidden = true;
   $('turtle').style.opacity = '1';
   inkPaths = geometry.map((g) => {
@@ -140,6 +151,7 @@ function paint(d) {
 }
 function complete() {
   cancelMotion(); status = 'complete'; completedStrokes = geometry.length;
+  sounds.finish();
   $('trail').replaceChildren(); $('turtle').style.opacity = '1';
   seen.add(letter().char); saveSeen();
   tell(`‘${letter().char}’ ${letter().name} 완성! 터틀이 만든 글자를 함께 보아요.`);
@@ -148,6 +160,7 @@ function complete() {
 }
 function beginTransfer() {
   phase = 'transfer'; distance = 0;
+  sounds.quiet();
   const a = geometry[stroke].points.at(-1), b = geometry[stroke + 1].points[0];
   $('trail').replaceChildren(svg('path', { d: `M${a.x},${a.y}L${b.x},${b.y}`, class: 'transfer' }));
   $('turtle').style.opacity = '.55';
@@ -173,6 +186,7 @@ function tick(time) {
   if ($('speed').value === 'reduced') {
     distance += dt;
     if (distance >= 1.25) {
+      sounds.step();
       paint(geometry[stroke].length);
       completedStrokes = stroke + 1;
       if (completedStrokes === geometry.length) { complete(); return; }
@@ -185,6 +199,7 @@ function tick(time) {
   }
   const speed = Number($('speed').value);
   if (phase === 'draw') {
+    sounds.move();
     distance = Math.min(geometry[stroke].length, distance + speed * dt);
     paint(distance);
     if (distance >= geometry[stroke].length) finishStroke();
@@ -211,10 +226,12 @@ function place() {
   tell('시작점에 놓았어요. 터틀과 함께 글자를 보아요.');
   updateControls();
   run();
+  sounds.start({ continuous: $('speed').value !== 'reduced' });
 }
 function pause(message = '터틀이 기다리고 있어요. 준비되면 ‘계속 보기’를 눌러요.') {
   if (status !== 'running') return;
   cancelMotion(); status = 'paused'; tell(message); updateControls();
+  sounds.stop();
 }
 function speechSynthesisSafeCancel() { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); }
 
@@ -238,7 +255,20 @@ document.querySelectorAll('input[name=color]').forEach((input) => input.addEvent
   color = input.value;
   inkPaths.forEach((path) => path.setAttribute('stroke', color));
 }));
-document.addEventListener('visibilitychange', () => { lastTime = null; });
+document.addEventListener('visibilitychange', () => {
+  lastTime = null;
+  if (document.hidden) sounds.quiet();
+});
+window.addEventListener('pagehide', () => sounds.stop());
+function updateSoundSettings() {
+  soundSettings = { enabled: $('sound-enabled').checked, volume: Number($('sound-volume').value) };
+  $('sound-volume-value').textContent = `${soundSettings.volume}%`;
+  sounds.configure(soundSettings);
+  try { localStorage.setItem('turtle-hangul-sound-v1', JSON.stringify(soundSettings)); }
+  catch { /* The activity still works without saved preferences. */ }
+}
+$('sound-enabled').addEventListener('change', updateSoundSettings);
+$('sound-volume').addEventListener('input', updateSoundSettings);
 
 function boardPoint(event) {
   const matrix = $('board').getScreenCTM();
@@ -248,27 +278,36 @@ function boardPoint(event) {
 $('board').addEventListener('pointerdown', (event) => {
   if (status !== 'idle') return;
   const p = boardPoint(event), start = geometry[0].points[0];
-  if (Math.hypot(p.x - start.x, p.y - start.y) <= 58) { place(); return; }
+  if (Math.hypot(p.x - start.x, p.y - start.y) <= 58) {
+    pressedStart = true; $('board').setPointerCapture(event.pointerId); return;
+  }
   if (Math.hypot(p.x - dock.x, p.y - dock.y) <= 58) {
     dragging = true; $('board').setPointerCapture(event.pointerId); position(p);
   }
 });
 $('board').addEventListener('pointermove', (event) => { if (dragging) position(boardPoint(event)); });
 $('board').addEventListener('pointerup', (event) => {
+  if (pressedStart) {
+    pressedStart = false;
+    const p = boardPoint(event), start = geometry[0].points[0];
+    // Start audio on touch release, when tablet browsers grant user activation.
+    if (Math.hypot(p.x - start.x, p.y - start.y) <= 68) place();
+    return;
+  }
   if (!dragging) return;
   dragging = false;
   const p = boardPoint(event), start = geometry[0].points[0];
   if (Math.hypot(p.x - start.x, p.y - start.y) <= 68) place();
-  else { position(dock); tell('터틀이 돌아왔어요. 큰 ‘시작점에 터틀 놓기’ 버튼을 눌러도 돼요.'); }
+  else { position(dock); tell('터틀이 돌아왔어요. 큰 ‘터틀 놓기’ 버튼을 눌러도 돼요.'); }
 });
-$('board').addEventListener('pointercancel', () => { if (dragging) { dragging = false; position(dock); } });
+$('board').addEventListener('pointercancel', () => { pressedStart = false; if (dragging) { dragging = false; position(dock); } });
 
 for (const [button, dialog] of [['help-button', 'help-dialog'], ['teacher-button', 'teacher-dialog']]) {
-  $(button).addEventListener('click', () => { pause(); $(dialog).showModal(); });
+  $(button).addEventListener('click', () => { pause(); sounds.stop(); $(dialog).showModal(); });
 }
 $('speak').addEventListener('click', () => {
   if (!('speechSynthesis' in window)) { tell('이 기기에서는 음성 안내를 쓸 수 없어요. 화면 안내를 함께 읽어 주세요.'); return; }
-  pause(); speechSynthesisSafeCancel();
+  pause(); sounds.stop(); speechSynthesisSafeCancel();
   const utterance = new SpeechSynthesisUtterance(`${letter().char}, ${letter().name}. ${$('message').textContent}`);
   utterance.lang = 'ko-KR'; utterance.rate = .8;
   utterance.onerror = (event) => {

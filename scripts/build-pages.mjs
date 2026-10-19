@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = new URL('../', import.meta.url);
 const output = new URL('docs/', root);
-const files = ['index.html', 'style.css', 'app.js', 'letters.js', '.nojekyll'];
+const files = ['index.html', 'style.css', 'app.js', 'letters.js', 'sound.js', '.nojekyll'];
 
 await mkdir(output, { recursive: true });
 for (const file of files) {
