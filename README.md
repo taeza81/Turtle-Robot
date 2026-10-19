@@ -18,12 +18,22 @@ npm start
 
 ## GitHub Pages
 
-`.github/workflows/pages.yml`은 `main`에 변경을 푸시하면 정적 웹앱을 GitHub Pages에 배포합니다.
-서버 코드, 테스트, SDK 파일은 배포하지 않고 웹앱 파일 4개와 `.nojekyll`만 업로드합니다.
+저장소 **Settings → Pages → Build and deployment**에서 아래처럼 설정합니다.
 
-최초 한 번 저장소 **Settings → Pages → Build and deployment → Source → GitHub Actions**를 선택해야 합니다.
-이후 `main` 푸시 또는 **Actions → Deploy Turtle Hangul to GitHub Pages → Run workflow**로 배포합니다.
-기본 프로젝트 주소는 `https://taeza81.github.io/Turtle-Robot/`이며 첫 배포 성공 후 사용할 수 있습니다.
+- **Source:** Deploy from a branch
+- **Branch:** main
+- **Folder:** /docs
+
+`docs` 폴더에는 웹앱 파일 4개와 `.nojekyll`이 들어 있습니다. 서버 코드, 테스트, SDK 파일은 배포하지 않습니다.
+별도 배포 워크플로는 필요하지 않으며, `main`의 `docs` 변경을 GitHub Pages가 게시합니다.
+
+웹앱을 수정하면 아래 명령으로 배포본을 갱신한 뒤, 원본 파일과 `docs` 변경을 함께 커밋·푸시합니다.
+
+```sh
+npm run build:pages
+```
+
+기본 프로젝트 주소는 `https://taeza81.github.io/Turtle-Robot/`이며 GitHub Pages 빌드가 성공하면 사용할 수 있습니다.
 
 ## 검증
 

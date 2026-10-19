@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#136955">
+  <title>터틀 한글 놀이터 · 획순 따라 색칠하기</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#practice">글자 놀이로 바로 가기</a>
+  <header class="app-header">
+    <div class="current-letter"><span id="big-letter" aria-hidden="true">ㄱ</span><div><h1 id="character-name">기역</h1><span class="app-name">터틀 한글 놀이터</span></div></div>
+    <div class="header-actions"><button id="change-letter" class="secondary">글자 바꾸기</button><button id="speak" class="quiet">안내 듣기</button></div>
+  </header>
+  <main id="practice" class="activity" tabindex="-1" aria-label="터틀과 자음 길 활동">
+    <div class="activity-message"><p id="message" role="status" aria-live="polite" aria-atomic="true" tabindex="-1"></p><p id="lock-notice" hidden>완성될 때까지 버튼이 쉬어요.</p></div>
+    <div class="canvas-area">
+      <svg id="board" viewBox="75 55 410 405" role="img" aria-labelledby="board-title board-desc">
+        <title id="board-title"></title><desc id="board-desc">터틀이 숫자 순서로 움직이며 글자를 색칠합니다. 시작점을 누르거나 아래 터틀 놓기 버튼을 누르세요.</desc>
+        <g id="routes"></g><g id="ink"></g><g id="markers"></g><g id="trail"></g>
+        <g id="turtle" aria-hidden="true">
+          <ellipse cx="0" cy="7" rx="30" ry="23" fill="#163f32" opacity=".13"/>
+          <g id="turtle-body"><ellipse cx="-16" cy="-18" rx="8" ry="11" fill="#75b799"/><ellipse cx="16" cy="-18" rx="8" ry="11" fill="#75b799"/><ellipse cx="-16" cy="18" rx="8" ry="11" fill="#75b799"/><ellipse cx="16" cy="18" rx="8" ry="11" fill="#75b799"/><ellipse cy="-29" rx="12" ry="14" fill="#8ac5a7" stroke="#185c43" stroke-width="2"/><circle cx="-4" cy="-32" r="2" fill="#163f32"/><circle cx="4" cy="-32" r="2" fill="#163f32"/><ellipse rx="24" ry="27" fill="#277859" stroke="#164a36" stroke-width="3"/><path d="M0-15 13-7 13 8 0 17-13 8-13-7Z M0-15V-26 M13-7 23-12 M13 8 23 14 M0 17V27 M-13 8-23 14 M-13-7-23-12" fill="none" stroke="#a9d69b" stroke-width="2.5"/></g>
+        </g>
+      </svg>
+    </div>
+    <div class="activity-bottom">
+      <div class="stroke-progress"><ol id="stroke-list" aria-label="획순 진행"></ol><span id="paint-count"></span></div>
+      <div class="main-actions"><button id="place" class="primary">터틀 놓기</button><div id="completion" hidden><button id="next-letter" class="secondary">다음 글자</button></div></div>
+    </div>
+    <label for="paint-progress" class="sr-only">완성한 획</label><progress id="paint-progress" value="0" max="1" class="sr-only"></progress>
+  </main>
+  <footer><span>천천히, 내 속도로</span><button id="teacher-button" class="quiet">교사 설정</button></footer>
+  <dialog id="letter-dialog" aria-labelledby="choose-heading">
+    <div class="dialog-heading"><h2 id="choose-heading">글자를 골라요</h2><form method="dialog"><button class="quiet" aria-label="글자 선택 닫기">닫기</button></form></div>
+    <div id="letters" class="letters" role="group" aria-label="연습할 자음"></div>
+    <p id="collection" class="collection" aria-live="polite">14개 중 0개를 만났어요</p>
+  </dialog>
+  <dialog id="teacher-dialog" aria-labelledby="teacher-title">
+    <h2 id="teacher-title">교사 설정</h2>
+    <p class="settings-hint">시작 전에 설정해 주세요.</p>
+    <label for="speed" class="setting-label">터틀 속도</label>
+    <select id="speed"><option value="reduced">움직임 없이 보기</option><option value="45">아주 천천히</option><option value="90" selected>천천히</option><option value="160">보통</option></select>
+    <fieldset class="palette"><legend>길 색깔</legend><label><input type="radio" name="color" value="#2563ad" checked><span class="blue">파랑</span></label><label><input type="radio" name="color" value="#8650a5"><span class="purple">보라</span></label><label><input type="radio" name="color" value="#b44e1c"><span class="orange">주황</span></label></fieldset>
+    <details><summary>활동 안내와 기록</summary>
+      <p>시작점에 가상 터틀을 놓으면 획순대로 자동 색칠합니다. 실제 로봇과 연결하지 않으며 물리 주행을 재현하는 시뮬레이터는 아닙니다.</p>
+      <p>다음 획으로 옮길 때는 색칠하지 않습니다. 점선은 글자가 아닌 가상 이동입니다. 색은 실제 터틀의 명령 코드와 대응하지 않습니다.</p>
+      <p>자동 색칠과 획 사이 이동 중에는 앱 전체 조작이 잠기고 완성 후 해제됩니다. ‘움직임 없이 보기’도 획을 순서대로 자동 표시하며 같은 잠금이 적용됩니다. 브라우저 자체의 새로고침·뒤로 가기는 차단하지 않습니다.</p>
+      <p>경로는 학습용 예시입니다. 교사는 수업의 획순·글자꼴 기준을 확인해 주세요. 학습 효과나 보조공학 호환성은 실제 학생과 확인해야 합니다.</p>
+      <p>함께 본 글자만 이 기기의 브라우저에 저장합니다. 숙달도를 평가하지 않습니다. 음성 안내는 기기의 한국어 음성 지원에 따라 다릅니다.</p>
+      <p id="storage-note"></p><button id="help-button" class="secondary">학생용 도움말</button>
+      <button id="reset-progress" class="quiet">전체 연습 기록 지우기</button><p id="reset-status" role="status"></p>
+    </details>
+    <form method="dialog"><button class="primary dialog-close">설정 마치기</button></form>
+  </dialog>
+  <dialog id="help-dialog" aria-labelledby="help-title"><h2 id="help-title">이렇게 놀이해요</h2><ol><li>글자를 골라요.</li><li>터틀을 시작점에 놓아요. ‘터틀 놓기’를 눌러도 돼요.</li><li>터틀이 색칠하는 글자를 보아요.</li></ol><p>색칠이 끝나면 다시 누를 수 있어요.</p><form method="dialog"><button class="primary dialog-close">알겠어요</button></form></dialog>
+  <div id="interaction-shield" hidden aria-hidden="true"></div>
+</body>
+</html>
